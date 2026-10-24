@@ -1,0 +1,71 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=Asia/Dubai
+      - TZ=Asia/Dubai
+      - N8N_SECURE_COOKIE=false
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_RESTRICT_FILE_ACCESS_TO=/home/node/exports
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./exports:/home/node/exports
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3
+    container_name: clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # native
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - TZ=Asia/Dubai
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - MB_DB_FILE=/metabase-data/metabase.db
+      - JAVA_TIMEZONE=Asia/Dubai
+    volumes:
+      - metabase_data:/metabase-data
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  n8n_data:
+  clickhouse_data:
+  metabase_data:

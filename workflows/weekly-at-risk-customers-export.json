@@ -1,0 +1,171 @@
+{
+  "name": "Weekly At-Risk customers export",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -112
+      ],
+      "id": "1febd588-36bb-4aa0-8a5b-43946e0ef1cc",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -96,
+        96
+      ],
+      "id": "9969481e-c134-42a3-bc18-7e7268ba60f0",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://clickhouse:8123/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/plain",
+        "body": " SELECT     user_id,     country,     acquisition_channel,     recency_days                AS days_since_last_order,     frequency                   AS orders,     round(monetary)             AS lifetime_spend_aed,     if(monetary >= 10000, 'VIP: personal call + exclusive offer', '15% win-back code') AS suggested_action   FROM analytics.ecom_rfm   WHERE segment = 'At Risk'   ORDER BY monetary DESC   SETTINGS output_format_json_quote_64bit_integers = 0   FORMAT JSON",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        176,
+        -32
+      ],
+      "id": "4b7531ae-3a4b-477c-93e1-c73d826329d0",
+      "name": "Get At-Risk customers",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "TfAaWEbdjhye6fu3",
+          "name": "ClickHouse (n8n_loader)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -32
+      ],
+      "id": "3d832e0c-f737-45b8-bdff-3a37977e35b8",
+      "name": "One item per customer"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "=at_risk_customers_{{ $now.toFormat('yyyy-MM-dd') }}.csv"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        624,
+        -32
+      ],
+      "id": "6a1d21f1-fb1e-4490-bb3c-434b72c685d0",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/home/node/exports/at_risk_customers_{{ $now.toFormat('yyyy-MM-dd') }}.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        848,
+        -32
+      ],
+      "id": "b25254b3-2ecf-4edc-9be3-4f05a437361f",
+      "name": "Read/Write Files from Disk"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get At-Risk customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get At-Risk customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get At-Risk customers": {
+      "main": [
+        [
+          {
+            "node": "One item per customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per customer": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
